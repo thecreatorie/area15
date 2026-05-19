@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Area 15 Invoice Generator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+  :root {
+    --bg: #fbf4e4;
+    --card: #ffffff;
+    --ink: #1a1a1a;
+    --muted: #6b6b6b;
+    --line: #e6e0d0;
+    --accent: #1a1a1a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    min-height: 100vh;
+    padding: 32px 16px;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 32px; margin: 0 0 6px; }
+  .sub { color: var(--muted); margin: 0 0 28px; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+  .card h2 { font-size: 16px; margin: 0 0 14px; letter-spacing: 0.02em; text-transform: uppercase; color: var(--muted); }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 560px) { .row { grid-template-columns: 1fr; } }
+  label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+  input, textarea, select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font: inherit;
+    background: #fff;
+    color: var(--ink);
+  }
+  textarea { min-height: 120px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+  input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .drop {
+    border: 2px dashed var(--line);
+    border-radius: 10px;
+    padding: 24px;
+    text-align: center;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.15s;
+    margin-bottom: 12px;
+  }
+  .drop:hover, .drop.drag { border-color: var(--accent); color: var(--ink); background: #faf6ec; }
+  .drop input { display: none; }
+  button {
+    background: var(--accent);
+    color: #fff;
+    border: 0;
+    padding: 14px 24px;
+    border-radius: 10px;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    width: 100%;
+    font-size: 16px;
+  }
+  button:hover { opacity: 0.9; }
+  button.secondary { background: #fff; color: var(--ink); border: 1px solid var(--line); }
+  .stack { display: flex; gap: 10px; }
+  .stack > * { flex: 1; }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .ok { color: #1a7f37; font-size: 13px; margin-top: 8px; }
+  .err { color: #b42318; font-size: 13px; margin-top: 8px; }
+  details { margin-top: 12px; }
+  summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Area 15 Invoice Generator</h1>
+  <p class="sub">Upload your contract or paste it in — get a formatted invoice PDF in seconds.</p>
+
+  <div class="card">
+    <h2>1. Drop in your contract</h2>
+    <label class="drop" id="drop">
+      <input type="file" id="file" accept=".pdf,.txt" />
+      <div><strong>Click to upload</strong> or drag a contract PDF or .txt here</div>
+      <div class="hint">We'll auto-fill the form below. You can also paste contract text or skip and fill it manually.</div>
+    </label>
+    <label>Or paste contract text</label>
+    <textarea id="paste" placeholder="Paste the contract text here..."></textarea>
+    <div id="parseStatus"></div>
+  </div>
+
+  <div class="card">
+    <h2>2. Review event details</h2>
+    <div class="row">
+      <div>
+        <label>Event name</label>
+        <input id="event" placeholder="Block Party" />
+      </div>
+      <div>
+        <label>Event date</label>
+        <input id="date" type="date" />
+      </div>
+    </div>
+    <div class="row" style="margin-top:14px;">
+      <div>
+        <label>Event start time</label>
+        <input id="start" type="time" />
+      </div>
+      <div>
+        <label>Event end time</label>
+        <input id="end" type="time" />
+      </div>
+    </div>
+    <div class="row" style="margin-top:14px;">
+      <div>
+        <label>Call time</label>
+        <input id="call" type="time" />
+      </div>
+      <div>
+        <label>Location</label>
+        <input id="location" value="AREA15 Las Vegas" />
+      </div>
+    </div>
+    <div class="row" style="margin-top:14px;">
+      <div>
+        <label>Service / role</label>
+        <input id="service" placeholder="Flow Performance" />
+      </div>
+      <div>
+        <label>Total ($)</label>
+        <input id="total" type="number" placeholder="400" />
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>3. Billed to (client)</h2>
+    <div class="row">
+      <div>
+        <label>Client name</label>
+        <input id="clientName" value="Area 15" />
+      </div>
+      <div>
+        <label>Client email</label>
+        <input id="clientEmail" value="casting@area15.com" />
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>4. Service provider (you)</h2>
+    <div class="row">
+      <div>
+        <label>Your name / business</label>
+        <input id="provName" placeholder="Jane Smith - Performer LLC" />
+      </div>
+      <div>
+        <label>Your email</label>
+        <input id="provEmail" placeholder="you@example.com" />
+      </div>
+    </div>
+    <div class="row" style="margin-top:14px;">
+      <div>
+        <label>Street address</label>
+        <input id="provStreet" placeholder="123 Main St" />
+      </div>
+      <div>
+        <label>City, State ZIP</label>
+        <input id="provCity" placeholder="Las Vegas NV 89130" />
+      </div>
+    </div>
+    <details>
+      <summary>Save my info on this device</summary>
+      <div class="hint" style="margin-top:8px;">Your provider details, invoice number prefix, and payment line are saved locally in your browser so you don't re-enter them each time.</div>
+    </details>
+  </div>
+
+  <div class="card">
+    <h2>5. Invoice & payment</h2>
+    <div class="row">
+      <div>
+        <label>Invoice number</label>
+        <input id="invNum" placeholder="00260516" />
+        <div class="hint">Auto-generated from date — edit if needed.</div>
+      </div>
+      <div>
+        <label>Filename prefix</label>
+        <input id="filePrefix" placeholder="YourName-EventNameMonthDay" />
+      </div>
+    </div>
+    <div style="margin-top:14px;">
+      <label>Payment instructions</label>
+      <input id="payment" value="Please make payment via bank transfer to account on file." />
+    </div>
+  </div>
+
+  <div class="stack">
+    <button id="generate">Generate Invoice PDF</button>
+    <button class="secondary" id="reset">Reset form</button>
+  </div>
+  <div id="status"></div>
+</div>
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+const $ = (id) => document.getElementById(id);
+const STORAGE_KEY = "area15-invoice-generator-v1";
+
+// ---------- Persistence (provider details only) ----------
+function loadSaved() {
+  try {
+    const s = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+    ["provName","provEmail","provStreet","provCity","clientName","clientEmail","location","payment","filePrefix"].forEach(k => {
+      if (s[k]) $(k).value = s[k];
+    });
+  } catch(e) {}
+}
+function saveProvider() {
+  const data = {};
+  ["provName","provEmail","provStreet","provCity","clientName","clientEmail","location","payment","filePrefix"].forEach(k => {
+    data[k] = $(k).value;
+  });
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+loadSaved();
+
+// ---------- File drop / parse ----------
+const drop = $("drop");
+const fileInput = $("file");
+drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("drag"); });
+drop.addEventListener("dragleave", () => drop.classList.remove("drag"));
+drop.addEventListener("drop", async (e) => {
+  e.preventDefault();
+  drop.classList.remove("drag");
+  if (e.dataTransfer.files[0]) await handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener("change", async (e) => {
+  if (e.target.files[0]) await handleFile(e.target.files[0]);
+});
+
+async function handleFile(file) {
+  setStatus("parseStatus", "Reading " + file.name + "...", "");
+  try {
+    let text = "";
+    if (file.name.toLowerCase().endsWith(".pdf")) {
+      const buf = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        text += content.items.map(it => it.str).join(" ") + "\n";
+      }
+    } else {
+      text = await file.text();
+    }
+    $("paste").value = text;
+    parseContract(text);
+    setStatus("parseStatus", "Parsed " + file.name + " — review the fields below.", "ok");
+  } catch (err) {
+    setStatus("parseStatus", "Couldn't read file: " + err.message, "err");
+  }
+}
+
+$("paste").addEventListener("input", (e) => {
+  if (e.target.value.length > 50) parseContract(e.target.value);
+});
+
+// ---------- Contract parsing (regex heuristics) ----------
+function parseContract(text) {
+  const t = text.replace(/\s+/g, " ");
+
+  // Event name — common patterns: "Event: X", "for X event", project name
+  const evMatch = t.match(/(?:event|project|gig|production|show)\s*(?:name|title)?\s*:?\s*([A-Z][A-Za-z0-9 '&\-]{2,40})/i)
+    || t.match(/(?:for the|for)\s+(?:the\s+)?([A-Z][A-Za-z0-9 '&\-]{3,40})\s+(?:event|show|performance|gig)/i);
+  if (evMatch) setIfEmpty("event", evMatch[1].trim());
+
+  // Date — Month Day, Year or Month Day(st/nd/rd/th), Year
+  const dMatch = t.match(/(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})/i);
+  if (dMatch) {
+    const months = {january:0,february:1,march:2,april:3,may:4,june:5,july:6,august:7,september:8,october:9,november:10,december:11};
+    const m = months[dMatch[1].toLowerCase()];
+    const d = parseInt(dMatch[2]);
+    const y = parseInt(dMatch[3]);
+    const iso = new Date(Date.UTC(y, m, d)).toISOString().slice(0, 10);
+    setIfEmpty("date", iso);
+  }
+
+  // Time ranges — "5:00 PM - 10:00 PM" or "10 PM - 4 AM"
+  const tMatch = t.match(/(\d{1,2})(?::(\d{2}))?\s*(AM|PM|am|pm)\s*[-–to]+\s*(\d{1,2})(?::(\d{2}))?\s*(AM|PM|am|pm)/);
+  if (tMatch) {
+    setIfEmpty("start", to24h(tMatch[1], tMatch[2], tMatch[3]));
+    setIfEmpty("end", to24h(tMatch[4], tMatch[5], tMatch[6]));
+  }
+
+  // Call time
+  const cMatch = t.match(/call\s*time\s*:?\s*(\d{1,2})(?::(\d{2}))?\s*(AM|PM|am|pm)/i);
+  if (cMatch) setIfEmpty("call", to24h(cMatch[1], cMatch[2], cMatch[3]));
+
+  // Total / rate / fee
+  const $Match = t.match(/(?:total|fee|rate|amount|compensation|pay(?:ment)?)\s*:?\s*\$?\s*([\d,]+)(?:\.\d+)?/i)
+    || t.match(/\$\s*([\d,]+)(?:\.\d+)?/);
+  if ($Match) setIfEmpty("total", $Match[1].replace(/,/g, ""));
+
+  // Service / role
+  const sMatch = t.match(/(aerial[^.,;]*performance|flow\s*performance|fire\s*performance|dance\s*performance|stilt\s*walk\w*|character\s*performance|hosting|emcee|DJ|musician|burlesque|circus[^.,;]*|\b[A-Z][a-z]+\s+performance)/i);
+  if (sMatch) setIfEmpty("service", sMatch[1].trim());
+
+  // Location
+  const lMatch = t.match(/location\s*:?\s*([A-Z][A-Za-z0-9 ,\-]{5,60})/i);
+  if (lMatch) setIfEmpty("location", lMatch[1].trim());
+
+  autoFillInvoiceNumber();
+  autoFillFilename();
+}
+
+function to24h(h, m, ap) {
+  h = parseInt(h);
+  m = m ? parseInt(m) : 0;
+  if (/pm/i.test(ap) && h !== 12) h += 12;
+  if (/am/i.test(ap) && h === 12) h = 0;
+  return String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0");
+}
+function setIfEmpty(id, val) {
+  if (!$(id).value) $(id).value = val;
+}
+
+// ---------- Auto invoice # + filename ----------
+function autoFillInvoiceNumber() {
+  if ($("invNum").value) return;
+  const d = $("date").value;
+  if (!d) return;
+  const [y, m, day] = d.split("-");
+  $("invNum").value = "0026" + m + day;
+}
+function autoFillFilename() {
+  if ($("filePrefix").value) return;
+  const name = ($("provName").value || "Invoice").split(" ")[0];
+  const ev = ($("event").value || "Event").replace(/\s+/g, "");
+  const d = $("date").value;
+  if (!d) return;
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const [y, m, day] = d.split("-");
+  $("filePrefix").value = name + "-" + ev + months[parseInt(m)-1] + parseInt(day);
+}
+["date","event","provName"].forEach(id => $(id).addEventListener("input", () => { autoFillInvoiceNumber(); autoFillFilename(); }));
+
+// ---------- PDF generation (mirrors the template) ----------
+function fmtTime(t) {
+  if (!t) return "";
+  const [h, m] = t.split(":").map(n => parseInt(n));
+  const ap = h >= 12 ? "PM" : "AM";
+  const h12 = ((h + 11) % 12) + 1;
+  return h12 + ":" + String(m).padStart(2, "0") + " " + ap;
+}
+function fmtDate(d) {
+  if (!d) return "";
+  const [y, m, day] = d.split("-").map(n => parseInt(n));
+  const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const suf = (n) => (n >= 11 && n <= 13) ? "th" : ["th","st","nd","rd","th","th","th","th","th","th"][n % 10];
+  return months[m-1] + " " + day + suf(day) + ", " + y;
+}
+
+$("generate").addEventListener("click", () => {
+  saveProvider();
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: "pt", format: "letter" });
+  const W = doc.internal.pageSize.getWidth();
+  const H = doc.internal.pageSize.getHeight();
+
+  // Header band
+  doc.setFillColor(251, 244, 228);
+  doc.rect(0, H - 100 - 40, W, 60, "F");
+  doc.setTextColor(26, 26, 26);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(28);
+  doc.text("Invoice", 60, H - 80);
+
+  // Invoice number
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.setTextColor(85, 85, 85);
+  doc.text("Invoice #: " + ($("invNum").value || ""), 60, H - 115);
+
+  // Billed To
+  let y = H - 160;
+  doc.setTextColor(26, 26, 26);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.text("Billed To:", 60, y);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(11);
+  doc.text($("clientName").value, 60, y - 18);
+  doc.text($("clientEmail").value, 60, y - 34);
+
+  // Service Provider
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.text("Service Provider:", 330, y);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(11);
+  doc.text($("provName").value, 330, y - 18);
+  if ($("provStreet").value) doc.text($("provStreet").value, 330, y - 34);
+  if ($("provCity").value) doc.text($("provCity").value, 330, y - 50);
+  if ($("provEmail").value) doc.text($("provEmail").value, 330, y - 66);
+
+  // Event Details
+  let y2 = y - 90;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.text("Event Details:", 60, y2);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(11);
+  doc.text(($("event").value || "") + " - Date: " + fmtDate($("date").value), 60, y2 - 18);
+  doc.text("Event Time: " + fmtTime($("start").value) + " - " + fmtTime($("end").value), 60, y2 - 34);
+  doc.text("Call Time: " + fmtTime($("call").value), 60, y2 - 50);
+  doc.text("Location: " + $("location").value, 60, y2 - 66);
+
+  // Service
+  let y3 = y2 - 100;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.text("Service:", 60, y3);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(11);
+  doc.text($("service").value || "", 60, y3 - 18);
+
+  // Total box
+  const bx = 330, by = y3 - 35, bw = 230, bh = 40;
+  doc.setDrawColor(0); doc.setLineWidth(1);
+  doc.rect(bx, by, bw, bh);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.text("TOTAL", bx + 12, by + 25);
+  const total = "$" + ($("total").value || "0");
+  doc.text(total, bx + bw - 12 - doc.getTextWidth(total), by + 25);
+
+  // Payment
+  let y4 = y3 - 100;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.text("Payment Instructions:", 60, y4);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(11);
+  doc.text($("payment").value, 60, y4 - 18);
+  doc.setTextColor(119, 119, 119);
+  doc.setFontSize(10);
+  doc.text("Email: " + $("provEmail").value, 60, y4 - 38);
+
+  const fname = ($("filePrefix").value || "Invoice") + ".pdf";
+  doc.save(fname);
+  setStatus("status", "Generated " + fname, "ok");
+});
+
+$("reset").addEventListener("click", () => {
+  ["event","date","start","end","call","service","total","invNum","filePrefix"].forEach(id => $(id).value = "");
+  $("paste").value = "";
+  setStatus("status", "Form cleared.", "");
+  setStatus("parseStatus", "", "");
+});
+
+function setStatus(id, msg, cls) {
+  const el = $(id);
+  el.textContent = msg;
+  el.className = cls;
+}
+</script>
+</body>
+</html>
